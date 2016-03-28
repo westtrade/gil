@@ -1,0 +1,23 @@
+{
+  "name": "gil",
+  "version": "1.0.0",
+  "description": "Genome lite framework - static website generator ",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/westtrade/gil.git"
+  },
+  "keywords": [
+    "website",
+    "generator"
+  ],
+  "author": "Popov Gena <commerce@westtrade.tk> (http://westtrade.tk/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/westtrade/gil/issues"
+  },
+  "homepage": "https://github.com/westtrade/gil#readme"
+}
