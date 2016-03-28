@@ -1,0 +1,43 @@
+#!/usr/bin/env node
+
+'use strict';
+
+
+let nodePath = require('path');
+let program = require('commander');
+let pckg = require('../package.json');
+
+const server = require('../src/gil').server;
+
+
+program.version(pckg.version);
+
+program
+	.option('--path', 'Path to source folder')
+
+
+
+let startServer = function (path) {
+	path = path || process.cwd();
+
+	console.log(nodePath.resolve(path));
+
+	server(path)
+
+
+
+}
+
+program
+	.command('serve [path]', null, { isDefault: true })
+	.description('execute the given remote cmd')
+	.action(startServer)
+;
+
+
+
+
+program.parse(process.argv);
+if(program.args.length < 1){
+	startServer()
+}

@@ -14,10 +14,17 @@
     "website",
     "generator"
   ],
+  "preferGlobal": true,
+  "bin": "./bin/gil",
   "author": "Popov Gena <commerce@westtrade.tk> (http://westtrade.tk/)",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/westtrade/gil/issues"
   },
-  "homepage": "https://github.com/westtrade/gil#readme"
+  "homepage": "https://github.com/westtrade/gil#readme",
+  "dependencies": {
+    "commander": "^2.9.0",
+    "livereload": "^0.4.1",
+    "mmmagic": "^0.4.1"
+  }
 }
