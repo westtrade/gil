@@ -1,6 +1,6 @@
 {
   "name": "gil",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Genome lite framework - static website generator ",
   "main": "index.js",
   "scripts": {
@@ -25,6 +25,7 @@
   "dependencies": {
     "commander": "^2.9.0",
     "livereload": "^0.4.1",
-    "mmmagic": "^0.4.1"
+    "mmmagic": "^0.4.1",
+    "node-ssi": "^0.3.2"
   }
 }

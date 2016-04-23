@@ -1,14 +1,71 @@
 'use strict';
 
-let nodePath = require('path');
-let http = require('http');
-let fs = require('fs');
-let url = require('url');
-let livereload = require('livereload');
+const nodePath = require('path');
+const http = require('http');
+const fs = require('fs');
+const url = require('url');
+const stream = require('stream');
 
-let mmm = require('mmmagic')
 
-let mimeDetector = new(mmm.Magic)(mmm.MAGIC_MIME_TYPE);
+const livereload = require('livereload');
+const mmm = require('mmmagic');
+const mimeDetector = new(mmm.Magic)(mmm.MAGIC_MIME_TYPE);
+const SSILib = require('node-ssi');
+
+
+
+
+const mimeTypes = {
+	'js' : 'application/javascript',
+	'css' : 'text/css'
+}
+
+
+
+
+
+let scriptTempalte = `
+<script>
+  document.write('<script src="http://' + (location.host || 'localhost').split(':')[0] +
+  ':35779/livereload.js?snipver=1"></' + 'script>')
+</script>
+`;
+
+class TransformStreamMiddleware extends stream.Transform {
+
+	constructor (options) {
+		super();
+
+		options = options || {};
+		this.__options = options;
+
+		this.ssi = new SSILib('ssi' in options ? options.ssi : {});
+	}
+
+	_transform (chunk, enc, cb) {
+
+		let encodedChunk = chunk;
+		if (enc === 'buffer') {
+			encodedChunk = encodedChunk.toString('utf-8');
+		}	
+
+		this.ssi.compile(encodedChunk, (err,encodedChunk) => { 
+
+			if (err) return cb(err);
+
+			if (encodedChunk.indexOf('</body>') >= 0) {
+				encodedChunk = encodedChunk.replace('</body>', `${ scriptTempalte }\n</body>`);
+			}		 	
+
+		 	this.push(enc === 'buffer' ? new Buffer(encodedChunk, 'utf-8') : encodedChunk);
+			
+			cb();
+		});
+	}
+}
+
+
+
 
 class ReflectFileSystem {
 	
@@ -17,54 +74,61 @@ class ReflectFileSystem {
 		this.__filelist = [];
 		this.__index = {};
 		this.__reindexPath = reindexFolder;	
-
 		this.__isReady = false;
 
 	}
 
-	static getFileList (folderPath) {
-
-		return new Promise((resolve, reject) => {	
-
-			fs.readdir(folderPath, function (err, fileList) {			
-				if (err) return reject(err);
-				
-				fileList = fileList.map(currentPathName => nodePath.join(folderPath, currentPathName));
-				resolve(fileList);
-			});
-		});
+	static getFileList (folderPathString) {
+		return new Promise((res, rej) => 
+           	fs.readdir(folderPathString, (e, fileListArray) => e ? rej(e) : res(fileListArray.map(currentPathName => nodePath.join(folderPath, currentPathName))))
+		);
 	}
 
-	static getPathInfo (filePath) {
+	static getSymbolicRealPath(filePathString) {
+		return new Promise((resolve, reject) => fs.readlink(filePathString, (err, linkString) => err ? reject(err) : resolve(linkString)));		
+	}
+
+	static getPathInfo (filePathString) {
 
 		//http://ru.code-maven.com/system-information-about-a-file-or-directory-in-nodejs
 
 		let info = {
-			path: filePath
+			path: filePathString
 		};
 		
-		info.fullPath = nodePath.resolve(filePath);
+		info.fullPath = nodePath.resolve(filePathString);
 
 		return new Promise((resolve, reject) => {
 
-			return fs.stat(filePath, function (err, stat) {
+			return fs.lstat(filePathString, (err, stat) => {
 				
-				if (err) return reject(err);
-				mimeDetector.detectFile(filePath, (err, mime) => {
+				if (err) return reject(err);				
 
-					if (err) return reject(err);
+				Promise
+					.resolve(stat.isSymbolicLink() ? ReflectFileSystem.getSymbolicRealPath(filePathString) : filePathString)
+					.then(realFilePath => {
 
-					let fileExtension = nodePath.extname(filePath);
-					let fileName = nodePath.basename(filePath, fileExtension);
+						mimeDetector.detectFile(realFilePath, (err, mime) => {
 
-					info.mimeType = mime;
-					info.stat = stat;
-					info.ext = fileExtension.replace('.', '');
-					info.basename = fileName;
-					info.type = stat.isFile() ? 'file' : (stat.isDirectory() ? 'directory' : '');
+							if (err) return reject(err);
 
-					resolve(info);
-				});
+							let fileExtension = nodePath.extname(filePathString);
+							let fileName = nodePath.basename(filePathString, fileExtension);
+
+
+							info.ext = fileExtension.replace('.', '');
+							info.mimeType = info.ext in mimeTypes ? mimeTypes[info.ext] : mime;
+							info.realPath = realFilePath;							
+							info.stat = stat;
+							
+							info.basename = fileName;
+							info.type = stat.isFile() ? 'file' : (stat.isDirectory() ? 'directory' : '');
+
+							resolve(info);
+						});
+					
+					})
+					.catch(reject);
 			});
 
 		});
@@ -81,7 +145,7 @@ class ReflectFileSystem {
 
 			return this.reindex().then(() => {
 				this.__isReady = true;
-				return this;
+				resolve(this);
 			});
 		});
 
@@ -152,6 +216,7 @@ class ReflectFileSystem {
 		return this.__filelist[idx];
 	}
 
+
 	* [Symbol.iterator] () {
 		for (let fileInfo of this.__filelist) {
 			yield fileInfo;
@@ -175,30 +240,43 @@ class ReflectFileSystem {
 
 
 
+function readFile(filePath) {
+	
+}
 
 
 
 
+// https://htmlweb.ru/html/ssi.php
+
+//var Readable = require('stream').Readable
 
 
-
+/**
+ * TODO Добавить возможно express в качестве серверного роутера, и pagesjs в качестве серверного
+ *
+ * Перед стартом сервера реквайрить все js
+ *
+ * Возможно имеет смысл добавить хуки
+ *
+ *
+ * Добавить процесс менеджер
+ *
+ * 
+ */
 
 module.exports['server'] = function (path, host, port) {
 
 	host = host || 'localhost';
 	port = port || 2405;
 
-	
-
-
-
-
-
 	let fileList = new ReflectFileSystem(`${ path }`);
 	const server = http.createServer((req, res) => {
 
 		let uri = url.parse(req.url).pathname;
+
 		let lastCharIsTrail = uri[uri.length - 1] === '/';
+
 
 		if (lastCharIsTrail) {
 			uri = uri + 'index.html';
@@ -206,24 +284,63 @@ module.exports['server'] = function (path, host, port) {
 
 
 		let currenPath = nodePath.resolve('.'  + uri);
-		fileList.isReady.then(() => {
-
+		//fileList.isReady.then(() => {
 			//TODO Возможно стоит сделать обработку директорий
+			//console.log(currenPath);
 			
-			let currentFileInfo = fileList.get(currenPath);
+			//let currentFileInfo = fileList.get(currenPath);
+			
+
+			return ReflectFileSystem.getPathInfo(currenPath).then(function (currentFileInfo) {
+				res.writeHead(200, {'Content-Type': currentFileInfo.mimeType } );
+
+				//console.log(currentFileInfo.mimeType);
+
+				let middleware = new TransformStreamMiddleware({
+					ssi : {
+						baseDir : nodePath.dirname(currentFileInfo.realPath)
+					}
+				});
+
+				let fileStream = fs
+					.createReadStream(currentFileInfo.realPath)
+					.pipe(middleware)
+					.pipe(res)
+				;
+
+
+
+
+			}).catch(e => {
+				console.log(e.stack);
+
+				res.writeHead(404, {'Content-Type': 'text/plain'});
+				console.log(`${ req.method } ${ req.url } 503`);
+
+				return res.end('Error happend: ' + e.stack);
+			});
+			
+
+			/*
 
 			if (!currentFileInfo) {
 				res.writeHead(404, {'Content-Type': 'text/plain'});
-				res.end('File not found');
+				console.log(`${ req.method } ${ req.url } 404`);
+
+				return res.end('File not found');
 			}
 
+			console.log(`${ req.method } ${ uri } 200`);
 
 
 			res.writeHead(200, {'Content-Type': currentFileInfo.mimeType} );
 
 			let fileStream = fs.createReadStream(currentFileInfo.fullPath);
 			fileStream.pipe(res);
-		});
+		
+			*/
+
+		//});
 
 	});
 
@@ -232,11 +349,12 @@ module.exports['server'] = function (path, host, port) {
 		console.log(`Gil started http://${ address.address }:${ address.port }/`);
 	});
 
-	//TODO Сделать LiveReload сервер встроенным
+	//TODO Сделать LiveReload сервер встроенным и добавить автоматическую проверку порта на не занятость
 	let livereloadServer = livereload.createServer({
 		applyJSLive: true,
 		applyCSSLive: true,
-		port: 35779
+		port: 35779,
+		exts : ['html', 'css', 'js', 'tag']
 	});
 
 	livereloadServer.watch(path);
