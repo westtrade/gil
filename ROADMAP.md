@@ -8,3 +8,4 @@
 - [] Add support for configs
 - [] Add support for .htaccess files (like apache)
 - [] Add support for node-red flows 
+- [] Remove node-ssi, write complex ssi support (maybe create gyp module for nginx) or temporary change to https://www.npmjs.com/package/essi

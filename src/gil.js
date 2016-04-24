@@ -282,7 +282,6 @@ module.exports['server'] = function (path, host, port) {
 			uri = uri + 'index.html';
 		}
 
-
 		let currenPath = nodePath.resolve('.'  + uri);
 		//fileList.isReady.then(() => {
 			//TODO Возможно стоит сделать обработку директорий
@@ -304,8 +303,12 @@ module.exports['server'] = function (path, host, port) {
 
 				let fileStream = fs
 					.createReadStream(currentFileInfo.realPath)
-					.pipe(middleware)
-					.pipe(res)
+				
+				if (currentFileInfo.mimeType === 'text/html') {
+					fileStream = fileStream.pipe(middleware);
+				}
+				
+				fileStream = fileStream.pipe(res)
 				;
 
 
