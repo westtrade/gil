@@ -1,0 +1,14 @@
+{
+  "name": "gil-settings",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Popov Gena <commerce@westtrade.tk> (http://westtrade.tk/)",
+  "license": "MIT",
+  "dependencies": {
+    "json-editor": "^0.7.25"
+  }
+}

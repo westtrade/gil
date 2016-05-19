@@ -1,0 +1,18 @@
+{
+	"host" : {
+		"type" : "string",
+		"default" : "localhost"
+	},
+
+	"port" : {
+		"type" : "integer",
+		"default" : 2405
+	},
+
+	"lrPort" : {
+		"type" : "integer",
+		"default" : 35779
+	},
+
+	"rootPathString" : "string"
+}

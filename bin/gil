@@ -7,32 +7,54 @@ let nodePath = require('path');
 let program = require('commander');
 let pckg = require('../package.json');
 
-const server = require('../src/gil').server;
+const GenomeLite = require('../src/gil');
 
-
-program.version(pckg.version);
 
 program
+	.version(pckg.version)
 	.option('--path', 'Path to source folder')
+	.option('-p, --port <n>', 'Server port', parseInt)
 
 
 
-let startServer = function (path) {
+let startServer = (path, host, port) => {
 	path = path || process.cwd();
-
-	console.log(nodePath.resolve(path));
-
-	server(path)
-
-
-
+	GenomeLite.server(path, host, port);
 }
 
 program
 	.command('serve [path]', null, { isDefault: true })
 	.description('execute the given remote cmd')
 	.action(startServer)
-;
+
+
+program
+	.command('desktop [path]', null)
+	.description('execute the given remote cmd')
+	.action((path) => {
+		path = path || process.cwd();
+		GenomeLite.desktop(path);
+	})
+
+
+
+program
+	.command('mobile [path]', null)
+	.description('execute the given remote cmd')
+	.action((path) => {
+		path = path || process.cwd();
+		GenomeLite.mobile(path);
+	})
+
+
+
+program
+	.command('mobile [path]', null)
+	.description('execute the given remote cmd')
+	.action((path) => {
+
+	})
+
 
 
 

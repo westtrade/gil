@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Document</title>
+
+	<script src="/node_modules/json-editor/dist/jsoneditor.min.js"></script>
+</head>
+<body>
+	
+
+	<div id="editor_holder"></div>
+
+
+
+
+	<script>
+
+		//TODO add settings hooks
+
+		var element = document.getElementById('editor_holder');
+		var options = {
+			schema: {
+				type: "object",
+				properties: {
+					name: { "type": "string" },
+					clients : {
+						"type" : "array",
+					}
+				}
+			},
+		}
+
+
+		// Initialize the editor
+		var editor = new JSONEditor(element, options);
+
+	</script>
+</body>
+</html>
