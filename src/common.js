@@ -2,28 +2,19 @@
 
 const http = require('http');
 const koa = require('koa');
-
 const livereload = require('livereload');
-
-
 const SSILib = require('node-ssi');
 const stream = require('stream');
-const ReflectFileSystem = require('./reflectfs');
-
-
-let optionSchemas = require('./options');
-
-
 const url = require('url');
 const fs = require('fs');
 const nodePath = require('path');
 
+const log = require('./utils/log');
+
+const ReflectFileSystem = require('./reflectfs');
+let optionSchemas = require('./options');
 
 // https://htmlweb.ru/html/ssi.php
-
-
-
-
 let scriptTemplate = (liveReloadPort) => `
 <script>
   document.write('<script src="http://' + (location.host || 'localhost').split(':')[0] +
@@ -33,111 +24,92 @@ let scriptTemplate = (liveReloadPort) => `
 
 class TransformStreamMiddleware extends stream.Transform {
 
-	constructor (serverOptionsData, options) {
-		
-
+	constructor (serverOptionsData, options = {}) {
 		super();
 
-		options = options || {};
 		this.__options = options;
+		const {serverOptions} = optionSchemas;
 
-		let serverOptions = optionSchemas.serverOptions;
 		serverOptions._data = serverOptionsData;
-
 		this.__serverOptions = serverOptions;
-
 		this.ssi = new SSILib('ssi' in options ? options.ssi : {});
 	}
 
 	_transform (chunk, enc, cb) {
-
 		let encodedChunk = chunk;
 		if (enc === 'buffer') {
 			encodedChunk = encodedChunk.toString('utf-8');
-		}	
+		}
 
-		this.ssi.compile(encodedChunk, (err,encodedChunk) => { 
-
-			if (err) return cb(err);
+		this.ssi.compile(encodedChunk, (err, encodedChunk) => {
+			if (err) {
+				return cb(err);
+			}
 
 			if (encodedChunk.indexOf('</body>') >= 0) {
 				encodedChunk = encodedChunk.replace('</body>', `${ scriptTemplate(this.__serverOptions.lrPort) }\n</body>`);
-			}		 	
+			}
 
-		 	this.push(enc === 'buffer' ? new Buffer(encodedChunk, 'utf-8') : encodedChunk);
-			
+			this.push(enc === 'buffer' ? new Buffer(encodedChunk, 'utf-8') : encodedChunk);
 			cb();
 		});
 	}
 }
 
-
-
-
-module.exports['createServer'] = function (options, requestListener) {
-
+module.exports.createServer = function createServer(options, requestListener) {
 	//https://github.com/koajs/send/blob/master/index.js
-	
-	
 	let serverOptions = optionSchemas.serverOptions;
 	serverOptions._data = options;
 
 	return new Promise((resolve, reject) => {
-
-		let app = koa();
+		const app = koa();
 
 		if (requestListener) {
 			app.use(requestListener);
 		}
 
 		let server = http.createServer(app.callback()).listen(serverOptions.port, serverOptions.host, () => {
-		
+
 			let address = server.address();
-			
+
 			//TODO Сделать LiveReload сервер встроенным и добавить автоматическую проверку порта на не занятость
 			let livereloadServer = livereload.createServer({
 				applyJSLive: true,
 				applyCSSLive: true,
 				port: serverOptions.lrPort,
-				exts : ['html', 'css', 'js', 'tag']
+				exts : ['html', 'css', 'js', 'tag', 'marko'],
 			});
 
 			livereloadServer.watch(serverOptions.rootPathString);
 
 			resolve(server);
-			console.log(`Gil started http://${ address.address }:${ address.port }/`);
+			log.info(`Gil started http://${ address.address }:${ address.port }/`);
 		});
 
 		// let server = http.createServer(requestListener).listen(port, host, () => {
-			
+
 
 		// });
 	});
-}
+};
 
-
-
-let directoryListApp = (ctx, rootPathString, folderPathInfo) => co(function *(next) {
-	
+let directoryListApp = async (ctx, rootPathString, folderPathInfo) => {
 	let htmlFileList = 'error';
-	
+	let serverOptions = optionSchemas.serverOptions;
+
 	try {
-	
-		let fileList = yield ReflectFileSystem.getFileList(folderPathInfo.realPath);
-		fileList = yield fileList.map(p => ReflectFileSystem.getPathInfo(p));
-	
+		let fileList = await ReflectFileSystem.getFileList(folderPathInfo.realPath);
+		fileList = await Promise.all(fileList.map(p => ReflectFileSystem.getPathInfo(p)));
+
 		fileList.map(pathInfo => {
 			pathInfo.relativePath = nodePath.relative(rootPathString, pathInfo.fullPath);
 			return pathInfo;
 		});
 
 		let currentRelativePathString = nodePath.relative(rootPathString, folderPathInfo.fullPath);
-
 		let currentFolderIsRoot = currentRelativePathString == 0;
-
 		let upPath = nodePath.resolve(folderPathInfo.fullPath, '..');
-
-		upPath =  nodePath.relative(rootPathString, upPath);
+		upPath = nodePath.relative(rootPathString, upPath);
 
 		let upButton = currentFolderIsRoot ? '' : `
 			<a href="/${ upPath }">UP</a>
@@ -160,7 +132,6 @@ let directoryListApp = (ctx, rootPathString, folderPathInfo) => co(function *(ne
 		htmlFileList = '' + e.stack;
 	}
 
-
 	htmlFileList = `
 		<!DOCTYPE html><html lang="en">
 			<head>
@@ -175,79 +146,67 @@ let directoryListApp = (ctx, rootPathString, folderPathInfo) => co(function *(ne
 
 			</head><body>
 			${ htmlFileList }
-			${ scriptTemplate(DEFAULT_LR_PORT) }
+			${ scriptTemplate(serverOptions.lrPorts) }
 		</body></html>
 	`;
 
 	ctx.status = 200;
 	ctx.set('Content-Type', 'text/html');
-	ctx.body = htmlFileList;	
-})
+	ctx.body = htmlFileList;
+};
 
 module.exports['directoryListApp'] = directoryListApp;
-
 
 let defaultApp = options => {
 
 	let serverOptions = optionSchemas.serverOptions;
 	serverOptions._data = options;
 
-
 	return function * (next) {
-
 		let uri = url.parse(this.request.url).pathname;
-		let currenPath = nodePath.resolve('.'  + uri);
-		
+		const currenPath = nodePath.resolve(serverOptions.rootPathString + uri);
 		let isFolder = uri[uri.length - 1] === '/';
-
-		isFolder = true;
 
 		let currenPathInfo = null;
 		let indexFileInfo = null;
 
 		try {
 			currenPathInfo = yield ReflectFileSystem.getPathInfo(currenPath);
-		} catch (e) {}
-		
-		try {
 			indexFileInfo = isFolder ? yield ReflectFileSystem.getPathInfo(nodePath.resolve(currenPath, 'index.html')) : null;
-		} catch (e) {
-			console.log(e.stack);
-		} 
-		
-		let currentFileInfo = indexFileInfo ? indexFileInfo : currenPathInfo;
+			let currentFileInfo = indexFileInfo ? indexFileInfo : currenPathInfo;
+			isFolder = currentFileInfo.type == 'directory';
 
-		isFolder = currentFileInfo.type == 'directory';
-		
-
-		if (isFolder) {
-			return directoryListApp(this, serverOptions.rootPathString, currenPathInfo);
-		}
-		
-		this.set('Content-Type', currentFileInfo.mimeType);
-		this.status = 200;
-
-		//TODO add E-Tag support for caching
-		//https://ru.wikipedia.org/wiki/HTTP_ETag
-		// if (this.fresh) {
-		// 	this.status = 304;
-		// 	return;
-		// }
-
-
-		let streamMiddleware = new TransformStreamMiddleware(serverOptions, {
-			ssi : {
-				baseDir : nodePath.dirname(currentFileInfo.realPath)
+			if (isFolder) {
+				return directoryListApp(this, serverOptions.rootPathString, currenPathInfo);
 			}
-		});					
 
-		let fileStream = fs.createReadStream(currentFileInfo.realPath)
-		
-		if (currentFileInfo.mimeType === 'text/html') {
-			fileStream = fileStream.pipe(streamMiddleware);
-		}				
-		
-		this.body = fileStream;
+			this.set('Content-Type', currentFileInfo.mimeType);
+			this.status = 200;
+
+			//TODO add E-Tag support for caching
+			//https://ru.wikipedia.org/wiki/HTTP_ETag
+			// if (this.fresh) {
+			// 	this.status = 304;
+			// 	return;
+			// }
+			const baseDir = nodePath.dirname(currentFileInfo.realPath);
+			const streamMiddleware = new TransformStreamMiddleware(serverOptions, {
+				ssi : { baseDir }
+			});
+
+			let fileStream = fs.createReadStream(currentFileInfo.realPath)
+
+			if (currentFileInfo.mimeType === 'text/html') {
+				fileStream = fileStream.pipe(streamMiddleware);
+			}
+
+			this.body = fileStream;
+
+		} catch (e) {
+			throw e;
+		}
+
+
 	}
 }
 

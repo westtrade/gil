@@ -10,19 +10,17 @@ const mimeDetector2 = require('mime');
 const mimeTypes = {
 	'js' : 'application/javascript',
 	'css' : 'text/css'
-}
+};
 
 
 class ReflectFileSystem {
-	
-	constructor (rootFolderString) {
 
+	constructor (rootFolderString) {
 		this.__rootFolder = rootFolderString;
 		this.__filelist = [];
 		this.__index = {};
-		this.__reindexPath = rootFolderString;	
+		this.__reindexPath = rootFolderString;
 		this.__isReady = false;
-
 	}
 
 	resolvePath (pathString) {
@@ -34,13 +32,13 @@ class ReflectFileSystem {
 	}
 
 	static getFileList (folderPathString) {
-		return new Promise((res, rej) => 
-           	fs.readdir(folderPathString, (e, fileListArray) => e ? rej(e) : res(fileListArray.map(currentPathName => nodePath.join(folderPathString, currentPathName))))
+		return new Promise((res, rej) =>
+			fs.readdir(folderPathString, (e, fileListArray) => e ? rej(e) : res(fileListArray.map(currentPathName => nodePath.join(folderPathString, currentPathName))))
 		);
 	}
 
 	static getSymbolicRealPath(filePathString) {
-		return new Promise((resolve, reject) => fs.readlink(filePathString, (err, linkString) => err ? reject(err) : resolve(linkString)));		
+		return new Promise((resolve, reject) => fs.readlink(filePathString, (err, linkString) => err ? reject(err) : resolve(linkString)));
 	}
 
 	static getPathInfo (filePathString) {
@@ -50,14 +48,14 @@ class ReflectFileSystem {
 		let info = {
 			path: filePathString
 		};
-		
+
 		info.fullPath = nodePath.resolve(filePathString);
 
 		return new Promise((resolve, reject) => {
 
 			return fs.lstat(filePathString, (err, stat) => {
-				
-				if (err) return reject(err);				
+
+				if (err) return reject(err);
 
 				Promise
 					.resolve(stat.isSymbolicLink() ? ReflectFileSystem.getSymbolicRealPath(filePathString) : filePathString)
@@ -65,7 +63,9 @@ class ReflectFileSystem {
 
 						mimeDetector.detectFile(realFilePath, (err, mime) => {
 
-							if (err) return reject(err);
+							if (err) {
+								return reject(err);
+							}
 
 							let fileExtension = nodePath.extname(filePathString);
 							let fileName = nodePath.basename(filePathString, fileExtension);
@@ -74,15 +74,15 @@ class ReflectFileSystem {
 							info.ext = fileExtension.replace('.', '');
 							info.mimeType = info.ext in mimeTypes ? mimeTypes[info.ext] : mime;
 							info.mimeType = info.mimeType == 'inode/x-empty' ? mimeDetector2.lookup(realFilePath) : info.mimeType;
-							info.realPath = realFilePath;																				
+							info.realPath = realFilePath;
 							info.stat = stat;
-							
+
 							info.basename = fileName;
 							info.type = stat.isFile() ? 'file' : (stat.isDirectory() ? 'directory' : '');
 
 							resolve(info);
 						});
-					
+
 					})
 					.catch(reject);
 			});
@@ -90,11 +90,8 @@ class ReflectFileSystem {
 		});
 	}
 
-
 	get isReady () {
-
-		return new Promise((resolve, reject) => {
-
+		return new Promise((resolve) => {
 			if (this.__isReady) {
 				return resolve(this);
 			}
@@ -104,24 +101,21 @@ class ReflectFileSystem {
 				resolve(this);
 			});
 		});
-
 	}
 
 	reindex (initReindexPath) {
-
 		let reindexPath = initReindexPath || this.__reindexPath;
-
 		return ReflectFileSystem.getFileList(reindexPath).then(fileList => {
-			
+
 			let resultPromise = Promise.resolve();
-			
+
 			fileList.forEach(filePath => {
 				resultPromise = resultPromise
 					.then(() => this.add(filePath))
 					.then(fileData => fileData.type === 'directory' ? this.reindex(fileData.fullPath) : fileData)
 			});
 
-			return resultPromise.then(lastFileInfo => { 
+			return resultPromise.then(lastFileInfo => {
 
 				if(initReindexPath) {
 					this.__isReady = true;
@@ -136,8 +130,8 @@ class ReflectFileSystem {
 	add (filePath) {
 
 		return ReflectFileSystem.getPathInfo(filePath).then(fileData => {
-			
-			this.__index[filePath] = this.__filelist.length;		
+
+			this.__index[filePath] = this.__filelist.length;
 			this.__filelist.push(fileData);
 
 			return fileData;
@@ -146,7 +140,7 @@ class ReflectFileSystem {
 
 	exclude (filePath) {
 
-	
+
 	}
 
 	//db.users.find({awards: {$elemMatch: {award:'National Medal', year:1975}}})
@@ -163,7 +157,7 @@ class ReflectFileSystem {
 
 	//TODO add parser
 	get (filePath) {
-		
+
 		if (!(filePath in this.__index)) {
 			return null;
 		}
@@ -185,7 +179,7 @@ class ReflectFileSystem {
 
 	toJSON () {
 		let resultObject = {};
-		
+
 		for (let currentPath in this.__index) {
 			resultObject[currentPath] = this.get(currentPath);
 		}

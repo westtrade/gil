@@ -1,65 +1,41 @@
 #!/usr/bin/env node
 
-'use strict';
-
-
-let nodePath = require('path');
-let program = require('commander');
-let pckg = require('../package.json');
-
+const program = require('caporal');
+const pckg = require('../package.json');
 const GenomeLite = require('../src/gil');
-
+const options = require('../src/options').serverOptions;
 
 program
 	.version(pckg.version)
-	.option('--path', 'Path to source folder')
-	.option('-p, --port <n>', 'Server port', parseInt)
+	.description(pckg.description);
 
-
-
-let startServer = (path, host, port) => {
-	path = path || process.cwd();
-	GenomeLite.server(path, host, port);
-}
+let startServer = (args, opts) => {
+	const {path = process.cwd()} = args || {};
+	const {port = options.port} = opts || {};
+	GenomeLite.server({path, host: 'localhost', port});
+};
 
 program
-	.command('serve [path]', null, { isDefault: true })
-	.description('execute the given remote cmd')
-	.action(startServer)
+	.command('start', 'Start web server')
+	.alias('serve')
+	.argument('[path]', 'Root path', false, process.cwd())
+	.option('-p, --port <n>', 'Server port', program.INT, options.port)
+	.action(startServer);
 
-
-program
-	.command('desktop [path]', null)
-	.description('execute the given remote cmd')
-	.action((path) => {
-		path = path || process.cwd();
-		GenomeLite.desktop(path);
-	})
-
-
-
-program
-	.command('mobile [path]', null)
-	.description('execute the given remote cmd')
-	.action((path) => {
-		path = path || process.cwd();
-		GenomeLite.mobile(path);
-	})
-
-
-
-program
-	.command('mobile [path]', null)
-	.description('execute the given remote cmd')
-	.action((path) => {
-
-	})
-
-
-
-
+// program
+// 	.command('desktop [path]', null)
+// 	.description('execute the given remote cmd')
+// 	.action((path) => {
+// 		path = path || process.cwd();
+// 		GenomeLite.desktop(path);
+// 	});
+//
+// program
+// 	.command('mobile [path]', null)
+// 	.description('execute the given remote cmd')
+// 	.action((path) => {
+// 		path = path || process.cwd();
+// 		GenomeLite.mobile(path);
+// 	});
 
 program.parse(process.argv);
-if(program.args.length < 1){
-	startServer()
-}
