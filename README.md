@@ -1,2 +1,1 @@
-# gil
-Genome lite framework - static website generator
+# gil - Is a server for dynamic Marko based apps
